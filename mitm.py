@@ -24,6 +24,11 @@ from cryptography.x509.oid import NameOID
 
 log = logging.getLogger("MITM")
 
+# Backdate notBefore so certs remain valid even when the client's clock
+# is slightly behind the server's. 5 minutes is the same slack Let's
+# Encrypt and other public CAs apply for this exact reason.
+CERT_CLOCK_SKEW = datetime.timedelta(minutes=5)
+
 
 def _app_dir() -> str:
     # Under PyInstaller one-file, __file__ lives in a temp extraction dir
@@ -76,7 +81,7 @@ class MITMCertManager:
             .issuer_name(issuer)
             .public_key(self._ca_key.public_key())
             .serial_number(x509.random_serial_number())
-            .not_valid_before(now)
+            .not_valid_before(now - CERT_CLOCK_SKEW)
             .not_valid_after(now + datetime.timedelta(days=3650))
             .add_extension(
                 x509.BasicConstraints(ca=True, path_length=0), critical=True
@@ -146,7 +151,7 @@ class MITMCertManager:
             .issuer_name(self._ca_cert.subject)
             .public_key(key.public_key())
             .serial_number(x509.random_serial_number())
-            .not_valid_before(now)
+            .not_valid_before(now - CERT_CLOCK_SKEW)
             .not_valid_after(now + datetime.timedelta(days=365))
             .add_extension(
                 x509.SubjectAlternativeName([x509.DNSName(domain)]),
